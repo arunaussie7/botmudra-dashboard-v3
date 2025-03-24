@@ -22,7 +22,7 @@ A comprehensive MT5 trading dashboard with advanced features for automated tradi
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/botmudra-dashboard-v3.git
+git clone https://github.com/arunaussie7/botmudra-dashboard-v3.git
 cd botmudra-dashboard-v3
 ```
 
