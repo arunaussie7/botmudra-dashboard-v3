@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Correlation Analysis</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card {
+            margin-bottom: 20px;
+        }
+        .correlation-strong {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .correlation-moderate {
+            color: #ffc107;
+            font-weight: bold;
+        }
+        .correlation-weak {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .stats-value {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .signal-indicator {
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
+        .signal-strong {
+            background-color: rgba(40, 167, 69, 0.1);
+            border: 1px solid #28a745;
+        }
+        .signal-moderate {
+            background-color: rgba(255, 193, 7, 0.1);
+            border: 1px solid #ffc107;
+        }
+        .signal-weak {
+            background-color: rgba(220, 53, 69, 0.1);
+            border: 1px solid #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Trading Dashboard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/correlation">Correlation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/strength">Strength</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/pair_movements">Pair Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/market_movements">Market Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/backtester">Backtester</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Correlation Analysis</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="correlationForm">
+                            <div class="mb-3">
+                                <label class="form-label">First Pair</label>
+                                <select class="form-select" id="pair1" required>
+                                    <option value="">Select pair</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Second Pair</label>
+                                <select class="form-select" id="pair2" required>
+                                    <option value="">Select pair</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Timeframe</label>
+                                <select class="form-select" id="timeframe" required>
+                                    <option value="M1">1 Minute</option>
+                                    <option value="M5">5 Minutes</option>
+                                    <option value="M15">15 Minutes</option>
+                                    <option value="M30">30 Minutes</option>
+                                    <option value="H1" selected>1 Hour</option>
+                                    <option value="H4">4 Hours</option>
+                                    <option value="D1">1 Day</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Analysis Period (Days)</label>
+                                <input type="number" class="form-control" id="analysisPeriod" value="30" min="1" max="365" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Analyze</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                <div class="row">
+                    <div class="col-12">
+                        <div id="correlationSignal" style="display: none;" class="signal-indicator">
+                            <h5 class="mb-2">Correlation Signal</h5>
+                            <p id="signalText" class="mb-0"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Price Comparison</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="priceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Rolling Correlation</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="correlationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Correlation Statistics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Price Correlation</h6>
+                                        <p id="priceCorr" class="stats-value">-</p>
+                                        
+                                        <h6>RSI Correlation</h6>
+                                        <p id="rsiCorr" class="stats-value">-</p>
+                                        
+                                        <h6>Returns Correlation</h6>
+                                        <p id="returnsCorr" class="stats-value">-</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Current Correlation</h6>
+                                        <p id="currentCorr" class="stats-value">-</p>
+                                        
+                                        <h6>Correlation Stability</h6>
+                                        <p id="corrStability" class="stats-value">-</p>
+                                        
+                                        <h6>Signal Strength</h6>
+                                        <p id="signalStrength" class="stats-value">-</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Pair Statistics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 id="pair1Name">Pair 1</h6>
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <td>Volatility:</td>
+                                                <td id="pair1Volatility" class="stats-value">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Change:</td>
+                                                <td id="pair1Change" class="stats-value">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Trend:</td>
+                                                <td id="pair1Trend" class="stats-value">-</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 id="pair2Name">Pair 2</h6>
+                                        <table class="table table-sm">
+                                            <tr>
+                                                <td>Volatility:</td>
+                                                <td id="pair2Volatility" class="stats-value">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Change:</td>
+                                                <td id="pair2Change" class="stats-value">-</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Trend:</td>
+                                                <td id="pair2Trend" class="stats-value">-</td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Trading Opportunities</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="tradingOpportunities">
+                                    No trading opportunities identified yet. Run analysis to see potential trades.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Load available pairs
+        fetch('/get_symbols')
+            .then(response => response.json())
+            .then(pairs => {
+                const pair1Select = document.getElementById('pair1');
+                const pair2Select = document.getElementById('pair2');
+                
+                pairs.forEach(pair => {
+                    pair1Select.add(new Option(pair, pair));
+                    pair2Select.add(new Option(pair, pair));
+                });
+            })
+            .catch(error => console.error('Error:', error));
+
+        let priceChart = null;
+        let correlationChart = null;
+
+        document.getElementById('correlationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const data = {
+                pair1: document.getElementById('pair1').value,
+                pair2: document.getElementById('pair2').value,
+                timeframe: document.getElementById('timeframe').value,
+                analysis_period: document.getElementById('analysisPeriod').value
+            };
+
+            // Show loading state
+            document.querySelectorAll('button[type="submit"]').forEach(button => {
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Analyzing...';
+            });
+
+            fetch('/analyze_correlation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                updateCharts(result);
+                updateStats(result);
+                updateSignals(result);
+                updatePairStats(result);
+                updateTradingOpportunities(result);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to analyze correlation');
+            })
+            .finally(() => {
+                // Reset button state
+                document.querySelectorAll('button[type="submit"]').forEach(button => {
+                    button.disabled = false;
+                    button.innerHTML = 'Analyze';
+                });
+            });
+        });
+
+        function updateCharts(data) {
+            // Update price chart
+            if (priceChart) {
+                priceChart.destroy();
+            }
+            
+            const priceCtx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    labels: data.timestamps,
+                    datasets: [{
+                        label: data.pair1_stats.symbol,
+                        data: data.prices1,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }, {
+                        label: data.pair2_stats.symbol,
+                        data: data.prices2,
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Price Comparison'
+                        }
+                    }
+                }
+            });
+
+            // Update correlation chart
+            if (correlationChart) {
+                correlationChart.destroy();
+            }
+            
+            const corrCtx = document.getElementById('correlationChart').getContext('2d');
+            correlationChart = new Chart(corrCtx, {
+                type: 'line',
+                data: {
+                    labels: data.timestamps,
+                    datasets: [{
+                        label: 'Rolling Correlation',
+                        data: data.rolling_correlation,
+                        borderColor: 'rgb(153, 102, 255)',
+                        tension: 0.1,
+                        fill: true,
+                        backgroundColor: 'rgba(153, 102, 255, 0.1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Rolling Correlation'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: -1,
+                            max: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStats(data) {
+            function getCorrelationClass(value) {
+                const absValue = Math.abs(value);
+                if (absValue >= 0.7) return 'correlation-strong';
+                if (absValue >= 0.4) return 'correlation-moderate';
+                return 'correlation-weak';
+            }
+
+            // Update correlation statistics
+            const priceCorr = document.getElementById('priceCorr');
+            const rsiCorr = document.getElementById('rsiCorr');
+            const returnsCorr = document.getElementById('returnsCorr');
+            const currentCorr = document.getElementById('currentCorr');
+            
+            priceCorr.textContent = (data.price_correlation * 100).toFixed(2) + '%';
+            priceCorr.className = 'stats-value ' + getCorrelationClass(data.price_correlation);
+            
+            rsiCorr.textContent = (data.rsi_correlation * 100).toFixed(2) + '%';
+            rsiCorr.className = 'stats-value ' + getCorrelationClass(data.rsi_correlation);
+            
+            returnsCorr.textContent = (data.returns_correlation * 100).toFixed(2) + '%';
+            returnsCorr.className = 'stats-value ' + getCorrelationClass(data.returns_correlation);
+            
+            currentCorr.textContent = (data.stats.current_correlation * 100).toFixed(2) + '%';
+            currentCorr.className = 'stats-value ' + getCorrelationClass(data.stats.current_correlation);
+
+            // Update correlation stability
+            const stability = data.stats.total_signals > 0 ? 
+                (data.stats.avg_duration / data.stats.max_duration * 100).toFixed(1) + '%' : 
+                'N/A';
+            document.getElementById('corrStability').textContent = stability;
+
+            // Update signal strength
+            const signalStrength = Math.abs(data.stats.current_correlation * 100).toFixed(1) + '%';
+            document.getElementById('signalStrength').textContent = signalStrength;
+        }
+
+        function updateSignals(data) {
+            const signalDiv = document.getElementById('correlationSignal');
+            const signalText = document.getElementById('signalText');
+            const currentCorr = Math.abs(data.stats.current_correlation);
+            
+            let signalMessage = '';
+            let signalClass = '';
+            
+            if (currentCorr >= 0.7) {
+                signalMessage = `Strong correlation detected (${(currentCorr * 100).toFixed(1)}%). Consider paired trading opportunities.`;
+                signalClass = 'signal-strong';
+            } else if (currentCorr >= 0.4) {
+                signalMessage = `Moderate correlation detected (${(currentCorr * 100).toFixed(1)}%). Monitor for potential trading opportunities.`;
+                signalClass = 'signal-moderate';
+            } else {
+                signalMessage = `Weak correlation detected (${(currentCorr * 100).toFixed(1)}%). Pairs may not be suitable for correlation trading.`;
+                signalClass = 'signal-weak';
+            }
+            
+            signalDiv.className = 'signal-indicator ' + signalClass;
+            signalText.textContent = signalMessage;
+            signalDiv.style.display = 'block';
+        }
+
+        function updatePairStats(data) {
+            // Update pair names
+            document.getElementById('pair1Name').textContent = data.pair1_stats.symbol;
+            document.getElementById('pair2Name').textContent = data.pair2_stats.symbol;
+            
+            // Update pair 1 stats
+            document.getElementById('pair1Volatility').textContent = data.pair1_stats.volatility.toFixed(2) + '%';
+            document.getElementById('pair1Change').textContent = data.pair1_stats.price_change.toFixed(2) + '%';
+            document.getElementById('pair1Trend').textContent = 
+                data.pair1_stats.sharpe > 0 ? 'Bullish' : 
+                data.pair1_stats.sharpe < 0 ? 'Bearish' : 'Neutral';
+            
+            // Update pair 2 stats
+            document.getElementById('pair2Volatility').textContent = data.pair2_stats.volatility.toFixed(2) + '%';
+            document.getElementById('pair2Change').textContent = data.pair2_stats.price_change.toFixed(2) + '%';
+            document.getElementById('pair2Trend').textContent = 
+                data.pair2_stats.sharpe > 0 ? 'Bullish' : 
+                data.pair2_stats.sharpe < 0 ? 'Bearish' : 'Neutral';
+        }
+
+        function updateTradingOpportunities(data) {
+            const opportunitiesDiv = document.getElementById('tradingOpportunities');
+            const currentCorr = Math.abs(data.stats.current_correlation);
+            let html = '';
+            
+            if (currentCorr >= 0.4) {
+                html += '<div class="mb-3">';
+                html += '<h6>Potential Trading Strategies:</h6>';
+                html += '<ul>';
+                
+                if (currentCorr >= 0.7) {
+                    html += '<li><strong>Pairs Trading:</strong> High correlation suggests good opportunity for pairs trading.</li>';
+                    if (data.stats.current_correlation > 0) {
+                        html += '<li><strong>Divergence Trading:</strong> Look for temporary divergences in price movement for mean reversion trades.</li>';
+                    } else {
+                        html += '<li><strong>Inverse Trading:</strong> Use one pair as a confirmation for opposite trades in the other pair.</li>';
+                    }
+                }
+                
+                if (data.pair1_stats.volatility > data.pair2_stats.volatility) {
+                    html += `<li><strong>Volatility Play:</strong> ${data.pair1_stats.symbol} shows higher volatility, consider it for larger price movements.</li>`;
+                } else {
+                    html += `<li><strong>Volatility Play:</strong> ${data.pair2_stats.symbol} shows higher volatility, consider it for larger price movements.</li>`;
+                }
+                
+                html += '</ul>';
+                html += '</div>';
+                
+                // Add specific trade suggestions
+                html += '<div>';
+                html += '<h6>Current Trade Suggestions:</h6>';
+                html += '<ul>';
+                
+                if (data.stats.current_correlation > 0.7) {
+                    if (data.pair1_stats.price_change > data.pair2_stats.price_change) {
+                        html += `<li>Consider short ${data.pair1_stats.symbol} and long ${data.pair2_stats.symbol} for mean reversion.</li>`;
+                    } else {
+                        html += `<li>Consider long ${data.pair1_stats.symbol} and short ${data.pair2_stats.symbol} for mean reversion.</li>`;
+                    }
+                }
+                
+                html += '</ul>';
+                html += '</div>';
+            } else {
+                html = 'Correlation is too weak for reliable trading opportunities. Consider analyzing different pairs.';
+            }
+            
+            opportunitiesDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html> 

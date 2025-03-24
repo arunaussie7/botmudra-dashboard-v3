@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currency Strength Meter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card {
+            margin-bottom: 20px;
+        }
+        .strength-bar {
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .strength-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+        .currency-strong {
+            background-color: #28a745;
+        }
+        .currency-weak {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Trading Dashboard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/correlation">Correlation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/strength">Strength</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/pair_movements">Pair Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/market_movements">Market Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/backtester">Backtester</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Currency Strength</h5>
+                        <select class="form-select form-select-sm" style="width: auto;" id="timeframeSelect">
+                            <option value="1D" selected>1 Day</option>
+                            <option value="4H">4 Hours</option>
+                            <option value="1H">1 Hour</option>
+                        </select>
+                    </div>
+                    <div class="card-body">
+                        <div id="strengthMeters"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Trading Opportunities</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Currency Pair</th>
+                                        <th>Direction</th>
+                                        <th>Strength Difference</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="opportunitiesTable">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Strongest Pairs</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Pair</th>
+                                        <th>Change %</th>
+                                        <th>Pips</th>
+                                        <th>Volume</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="strongestPairsTable">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function updateStrengthMeters() {
+            const timeframe = document.getElementById('timeframeSelect').value;
+            
+            fetch(`/api/currency_strength?timeframe=${timeframe}`)
+                .then(response => response.json())
+                .then(data => {
+                    const strengthMeters = document.getElementById('strengthMeters');
+                    strengthMeters.innerHTML = '';
+                    
+                    data[0].currencies.forEach(currency => {
+                        const row = document.createElement('div');
+                        row.className = 'mb-3';
+                        
+                        const label = document.createElement('div');
+                        label.className = 'd-flex justify-content-between mb-1';
+                        label.innerHTML = `
+                            <span>${currency}</span>
+                            <span>${data[0][currency].toFixed(2)}%</span>
+                        `;
+                        
+                        const bar = document.createElement('div');
+                        bar.className = 'strength-bar';
+                        
+                        const fill = document.createElement('div');
+                        fill.className = `strength-fill ${data[0][currency] >= 50 ? 'currency-strong' : 'currency-weak'}`;
+                        fill.style.width = `${data[0][currency]}%`;
+                        
+                        bar.appendChild(fill);
+                        row.appendChild(label);
+                        row.appendChild(bar);
+                        strengthMeters.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateOpportunities() {
+            fetch('/api/strongest_currencies')
+                .then(response => response.json())
+                .then(data => {
+                    const table = document.getElementById('opportunitiesTable');
+                    table.innerHTML = '';
+                    
+                    data.currencies.forEach(currency => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${currency.currency}</td>
+                            <td>${currency.strength > 50 ? 'Strong' : 'Weak'}</td>
+                            <td>${Math.abs(currency.strength - 50).toFixed(2)}%</td>
+                        `;
+                        table.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateStrongestPairs() {
+            fetch('/api/strongest_pairs')
+                .then(response => response.json())
+                .then(data => {
+                    const table = document.getElementById('strongestPairsTable');
+                    table.innerHTML = '';
+                    
+                    data.pairs.forEach(pair => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${pair.symbol}</td>
+                            <td class="${pair.change_percent > 0 ? 'text-success' : 'text-danger'}">
+                                ${pair.change_percent.toFixed(2)}%
+                            </td>
+                            <td>${Math.abs(pair.change_pips).toFixed(1)}</td>
+                            <td>${pair.volume.toLocaleString()}</td>
+                        `;
+                        table.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Initial update
+        updateStrengthMeters();
+        updateOpportunities();
+        updateStrongestPairs();
+
+        // Update on timeframe change
+        document.getElementById('timeframeSelect').addEventListener('change', updateStrengthMeters);
+
+        // Auto-refresh every minute
+        setInterval(() => {
+            updateStrengthMeters();
+            updateOpportunities();
+            updateStrongestPairs();
+        }, 60000);
+    </script>
+</body>
+</html> 

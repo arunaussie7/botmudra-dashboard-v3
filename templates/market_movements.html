@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Movements</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card {
+            margin-bottom: 20px;
+        }
+        .movement-up {
+            color: #28a745;
+        }
+        .movement-down {
+            color: #dc3545;
+        }
+        .sentiment-bullish {
+            background-color: rgba(40, 167, 69, 0.1);
+        }
+        .sentiment-bearish {
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+        .sentiment-neutral {
+            background-color: rgba(108, 117, 125, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Trading Dashboard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/correlation">Correlation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/strength">Strength</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/pair_movements">Pair Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/market_movements">Market Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/backtester">Backtester</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Market Overview</h5>
+                        <select class="form-select form-select-sm" style="width: auto;" id="timeframeSelect">
+                            <option value="1H">1 Hour</option>
+                            <option value="2H">2 Hours</option>
+                            <option value="1D" selected>1 Day</option>
+                        </select>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h6>Market Sentiment</h6>
+                            <div class="row text-center">
+                                <div class="col-4 sentiment-bullish rounded p-2">
+                                    <div class="h4" id="bullishCount">-</div>
+                                    <div>Bullish</div>
+                                </div>
+                                <div class="col-4 sentiment-neutral rounded p-2">
+                                    <div class="h4" id="neutralCount">-</div>
+                                    <div>Neutral</div>
+                                </div>
+                                <div class="col-4 sentiment-bearish rounded p-2">
+                                    <div class="h4" id="bearishCount">-</div>
+                                    <div>Bearish</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h6>Major Pairs</h6>
+                            <div id="majorPairsContainer"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Market Volatility</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="volatilityChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Significant Movements</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Change %</th>
+                                        <th>Pips</th>
+                                        <th>Volatility</th>
+                                        <th>Trend</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="movementsTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let volatilityChart = null;
+
+        function updateMarketData() {
+            const timeframe = document.getElementById('timeframeSelect').value;
+            
+            fetch(`/api/market_movements?timeframe=${timeframe}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateSentiment(data.sentiment);
+                    updateMajorPairs(data.major_pairs);
+                    updateVolatilityChart(data.volatility);
+                    updateMovementsTable(data.movements);
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateSentiment(sentiment) {
+            document.getElementById('bullishCount').textContent = sentiment.bullish;
+            document.getElementById('neutralCount').textContent = sentiment.neutral;
+            document.getElementById('bearishCount').textContent = sentiment.bearish;
+        }
+
+        function updateMajorPairs(pairs) {
+            const container = document.getElementById('majorPairsContainer');
+            container.innerHTML = '';
+            
+            pairs.forEach(pair => {
+                const div = document.createElement('div');
+                div.className = 'mb-2 d-flex justify-content-between align-items-center';
+                div.innerHTML = `
+                    <span>${pair.symbol}</span>
+                    <span class="${pair.change > 0 ? 'movement-up' : 'movement-down'}">
+                        ${pair.change.toFixed(2)}%
+                    </span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateVolatilityChart(volatility) {
+            if (volatilityChart) {
+                volatilityChart.destroy();
+            }
+            
+            const ctx = document.getElementById('volatilityChart').getContext('2d');
+            volatilityChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: volatility.timestamps,
+                    datasets: [{
+                        label: 'Market Volatility',
+                        data: volatility.values,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '24-Hour Volatility'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateMovementsTable(movements) {
+            const table = document.getElementById('movementsTable');
+            table.innerHTML = '';
+            
+            movements.forEach(movement => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${movement.symbol}</td>
+                    <td class="${movement.change > 0 ? 'movement-up' : 'movement-down'}">
+                        ${movement.change.toFixed(2)}%
+                    </td>
+                    <td>${Math.abs(movement.pips).toFixed(1)}</td>
+                    <td>${movement.volatility.toFixed(2)}%</td>
+                    <td>
+                        <i class="fa fa-${movement.trend === 'up' ? 'arrow-up movement-up' : 
+                                        movement.trend === 'down' ? 'arrow-down movement-down' : 
+                                        'minus text-muted'}"></i>
+                    </td>
+                `;
+                table.appendChild(row);
+            });
+        }
+
+        // Initial update
+        updateMarketData();
+
+        // Update on timeframe change
+        document.getElementById('timeframeSelect').addEventListener('change', updateMarketData);
+
+        // Auto-refresh every minute
+        setInterval(updateMarketData, 60000);
+    </script>
+</body>
+</html> 

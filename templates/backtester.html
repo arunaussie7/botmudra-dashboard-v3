@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Backtester</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .card {
+            margin-bottom: 20px;
+        }
+        .stats-value {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .profit {
+            color: #28a745;
+        }
+        .loss {
+            color: #dc3545;
+        }
+        .trade-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">Trading Dashboard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/correlation">Correlation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/strength">Strength</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/pair_movements">Pair Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/market_movements">Market Movements</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/backtester">Backtester</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Forex Basket Index Strategy</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="backtestForm">
+                            <div class="mb-3">
+                                <label class="form-label">Timeframe</label>
+                                <select class="form-select" id="timeframe" required>
+                                    <option value="M15">15 Minutes</option>
+                                    <option value="M30">30 Minutes</option>
+                                    <option value="H1" selected>1 Hour</option>
+                                    <option value="H4">4 Hours</option>
+                                    <option value="D1">1 Day</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Initial Balance</label>
+                                <input type="number" class="form-control" id="initialBalance" value="10000" min="1000" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Risk Per Trade (%)</label>
+                                <input type="number" class="form-control" id="riskPerTrade" value="2" min="0.1" max="10" step="0.1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">EMA Period</label>
+                                <input type="number" class="form-control" id="emaPeriod" value="200" min="10" max="500" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="startDate" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="endDate" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Run Backtest</button>
+                        </form>
+                        
+                        <hr>
+                        <div class="mt-3">
+                            <h6 class="mb-3">EA Controls</h6>
+                            <div class="d-flex gap-2">
+                                <button id="startEA" class="btn btn-success flex-grow-1">
+                                    <i class="fa fa-play"></i> Start EA
+                                </button>
+                                <button id="stopEA" class="btn btn-danger flex-grow-1">
+                                    <i class="fa fa-stop"></i> Stop EA
+                                </button>
+                            </div>
+                            <div id="eaStatus" class="alert mt-3 text-center" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Equity Curve</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="equityChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Basket Index vs EMA</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="basketChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Performance Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Net Profit</h6>
+                                        <p id="netProfit" class="stats-value">-</p>
+                                        
+                                        <h6>Win Rate</h6>
+                                        <p id="winRate" class="stats-value">-</p>
+                                        
+                                        <h6>Profit Factor</h6>
+                                        <p id="profitFactor" class="stats-value">-</p>
+                                        
+                                        <h6>Total Trades</h6>
+                                        <p id="totalTrades" class="stats-value">-</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6>Max Drawdown</h6>
+                                        <p id="maxDrawdown" class="stats-value">-</p>
+                                        
+                                        <h6>Sharpe Ratio</h6>
+                                        <p id="sharpeRatio" class="stats-value">-</p>
+                                        
+                                        <h6>Average Trade</h6>
+                                        <p id="avgTrade" class="stats-value">-</p>
+                                        
+                                        <h6>Recovery Factor</h6>
+                                        <p id="recoveryFactor" class="stats-value">-</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Monthly Returns</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="monthlyReturnsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">Trade History</h5>
+                            </div>
+                            <div class="card-body trade-list">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Pairs</th>
+                                            <th>Entry</th>
+                                            <th>Exit</th>
+                                            <th>Profit/Loss</th>
+                                            <th>Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tradeHistory">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Set default dates
+        const today = new Date();
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(today.getFullYear() - 1);
+        
+        document.getElementById('startDate').value = oneYearAgo.toISOString().split('T')[0];
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+
+        let equityChart = null;
+        let basketChart = null;
+        let monthlyReturnsChart = null;
+
+        document.getElementById('backtestForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const data = {
+                timeframe: document.getElementById('timeframe').value,
+                initial_balance: parseFloat(document.getElementById('initialBalance').value),
+                risk_per_trade: parseFloat(document.getElementById('riskPerTrade').value),
+                ema_period: parseInt(document.getElementById('emaPeriod').value),
+                start_date: document.getElementById('startDate').value,
+                end_date: document.getElementById('endDate').value
+            };
+
+            // Show loading state
+            document.querySelectorAll('button[type="submit"]').forEach(button => {
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Running Backtest...';
+            });
+
+            fetch('/run_backtest', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                updateCharts(result);
+                updateStats(result);
+                updateTradeHistory(result);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to run backtest');
+            })
+            .finally(() => {
+                // Reset button state
+                document.querySelectorAll('button[type="submit"]').forEach(button => {
+                    button.disabled = false;
+                    button.innerHTML = 'Run Backtest';
+                });
+            });
+        });
+
+        function updateCharts(data) {
+            // Update equity chart
+            if (equityChart) {
+                equityChart.destroy();
+            }
+            
+            const equityCtx = document.getElementById('equityChart').getContext('2d');
+            equityChart = new Chart(equityCtx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'Account Balance',
+                        data: data.equity_curve,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Equity Curve'
+                        }
+                    }
+                }
+            });
+
+            // Update basket chart
+            if (basketChart) {
+                basketChart.destroy();
+            }
+            
+            const basketCtx = document.getElementById('basketChart').getContext('2d');
+            basketChart = new Chart(basketCtx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [{
+                        label: 'Basket Index',
+                        data: data.basket_index,
+                        borderColor: 'rgb(255, 99, 132)',
+                        tension: 0.1
+                    }, {
+                        label: 'EMA',
+                        data: data.ema_line,
+                        borderColor: 'rgb(54, 162, 235)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Basket Index vs EMA'
+                        }
+                    }
+                }
+            });
+
+            // Update monthly returns chart
+            if (monthlyReturnsChart) {
+                monthlyReturnsChart.destroy();
+            }
+            
+            const monthlyCtx = document.getElementById('monthlyReturnsChart').getContext('2d');
+            monthlyReturnsChart = new Chart(monthlyCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.monthly_returns.map(r => r.month),
+                    datasets: [{
+                        label: 'Monthly Return (%)',
+                        data: data.monthly_returns.map(r => r.return),
+                        backgroundColor: data.monthly_returns.map(r => r.return >= 0 ? 'rgba(75, 192, 192, 0.5)' : 'rgba(255, 99, 132, 0.5)'),
+                        borderColor: data.monthly_returns.map(r => r.return >= 0 ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)'),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Monthly Returns'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStats(data) {
+            // Update performance metrics
+            document.getElementById('netProfit').textContent = `$${data.stats.net_profit.toFixed(2)}`;
+            document.getElementById('netProfit').className = `stats-value ${data.stats.net_profit >= 0 ? 'profit' : 'loss'}`;
+            
+            document.getElementById('winRate').textContent = `${(data.stats.win_rate * 100).toFixed(2)}%`;
+            document.getElementById('profitFactor').textContent = data.stats.profit_factor.toFixed(2);
+            document.getElementById('totalTrades').textContent = data.stats.total_trades;
+            
+            document.getElementById('maxDrawdown').textContent = `${(data.stats.max_drawdown * 100).toFixed(2)}%`;
+            document.getElementById('sharpeRatio').textContent = data.stats.sharpe_ratio.toFixed(2);
+            document.getElementById('avgTrade').textContent = `$${data.stats.avg_trade.toFixed(2)}`;
+            document.getElementById('recoveryFactor').textContent = data.stats.recovery_factor.toFixed(2);
+        }
+
+        function updateTradeHistory(data) {
+            const tradeHistory = document.getElementById('tradeHistory');
+            tradeHistory.innerHTML = '';
+            
+            data.trades.forEach(trade => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(trade.date).toLocaleString()}</td>
+                    <td>${trade.type}</td>
+                    <td>${trade.pairs.join(', ')}</td>
+                    <td>${trade.entry.toFixed(5)}</td>
+                    <td>${trade.exit.toFixed(5)}</td>
+                    <td class="${trade.profit >= 0 ? 'profit' : 'loss'}">$${trade.profit.toFixed(2)}</td>
+                    <td>$${trade.balance.toFixed(2)}</td>
+                `;
+                tradeHistory.appendChild(row);
+            });
+        }
+
+        // Add EA Control Functions
+        document.getElementById('startEA').addEventListener('click', function() {
+            this.disabled = true;
+            document.getElementById('stopEA').disabled = false;
+            
+            fetch('/control_ea', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'start' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('eaStatus');
+                statusDiv.style.display = 'block';
+                if (data.success) {
+                    statusDiv.className = 'alert alert-success mt-3';
+                    statusDiv.textContent = 'EA Started Successfully';
+                } else {
+                    statusDiv.className = 'alert alert-danger mt-3';
+                    statusDiv.textContent = data.error || 'Failed to start EA';
+                    this.disabled = false;
+                }
+            })
+            .catch(error => {
+                const statusDiv = document.getElementById('eaStatus');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'alert alert-danger mt-3';
+                statusDiv.textContent = 'Error connecting to server';
+                this.disabled = false;
+            });
+        });
+
+        document.getElementById('stopEA').addEventListener('click', function() {
+            this.disabled = true;
+            document.getElementById('startEA').disabled = false;
+            
+            fetch('/control_ea', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ action: 'stop' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('eaStatus');
+                statusDiv.style.display = 'block';
+                if (data.success) {
+                    statusDiv.className = 'alert alert-success mt-3';
+                    statusDiv.textContent = 'EA Stopped Successfully';
+                } else {
+                    statusDiv.className = 'alert alert-danger mt-3';
+                    statusDiv.textContent = data.error || 'Failed to stop EA';
+                    this.disabled = false;
+                }
+            })
+            .catch(error => {
+                const statusDiv = document.getElementById('eaStatus');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'alert alert-danger mt-3';
+                statusDiv.textContent = 'Error connecting to server';
+                this.disabled = false;
+            });
+        });
+
+        // Initialize EA status on page load
+        fetch('/ea_status')
+            .then(response => response.json())
+            .then(data => {
+                const startButton = document.getElementById('startEA');
+                const stopButton = document.getElementById('stopEA');
+                if (data.is_running) {
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                } else {
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                }
+            });
+    </script>
+</body>
+</html> 
